@@ -98,19 +98,23 @@ def diagnose(pipeline: str, log: str | None, model: str, max_steps: int, auto_fi
 @click.option("--model", "-m", default="qwen2.5-coder:7b", help="Ollama model name")
 @click.option("--output", "-o", type=click.Choice(["table", "json"]), default="table", help="Output format")
 @click.option("--tool-mode", type=click.Choice(["auto", "native", "structured"]), default="auto", help="Tool calling mode")
-def eval(golden_dir: str, model: str, output: str, tool_mode: str):
+@click.option("--verbose-scoring", is_flag=True, help="Show detailed scoring breakdown per case")
+@click.option("--case", "case_filter", default=None, help="Run a single case by ID prefix (e.g., case_01)")
+def eval(golden_dir: str, model: str, output: str, tool_mode: str, verbose_scoring: bool, case_filter: str | None):
     """Run evaluation against the golden set."""
     from eval.runner import EvalRunner
 
     console.print(f"\n[bold]ETL Debugger Eval Suite[/bold]")
     console.print(f"Model: {model}")
     console.print(f"Golden set: {golden_dir}")
+    if case_filter:
+        console.print(f"Case filter: {case_filter}")
     console.print()
 
     llm = OllamaClient(model=model, tool_mode=tool_mode)
-    runner = EvalRunner(llm=llm, golden_dir=golden_dir)
+    runner = EvalRunner(llm=llm, golden_dir=golden_dir, verbose_scoring=verbose_scoring)
 
-    report = runner.run_all()
+    report = runner.run_all(case_filter=case_filter)
 
     if output == "json":
         console.print(report.model_dump_json(indent=2))
