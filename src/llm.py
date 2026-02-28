@@ -23,15 +23,40 @@ You have access to these tools:
 
 CRITICAL: You MUST use at least 2 tools before providing your final diagnosis. Do NOT answer from the error log alone — always verify by inspecting schemas and running test queries first. The error log may be misleading.
 
-Workflow:
-1. First, inspect the destination table schema to see the actual columns
-2. Then, inspect the source table or run a test SELECT to see source columns
-3. Compare source vs destination schemas to identify mismatches
-4. Propose a specific fix and verify it with a test query
+## Diagnostic Checklist (follow this order)
+1. Inspect the DESTINATION table schema — note every column name and data type
+2. Inspect the SOURCE table schema — note every column name and data type
+3. Compare source vs destination columns SIDE BY SIDE:
+   - Are any column NAMES different? (e.g., source has "total_amount" but dest has "amount")
+   - Are any column TYPES different? (e.g., source VARCHAR but dest expects DOUBLE)
+   - Is any dest column MISSING from source entirely?
+4. If the transform SQL has a JOIN and the error mentions 0 rows:
+   - Run SELECT DISTINCT on the join key column from BOTH tables
+   - Compare the actual values — look for format differences (integer vs string, prefixes)
+5. Run a test SELECT with your proposed fix BEFORE writing the final INSERT
+6. Write the final fix and a verification query
+
+## Common ETL Bug Patterns
+1. COLUMN NAME MISMATCH: Source has column "X" but destination expects "Y".
+   Fix: SELECT source_col AS dest_col in the query. Use the DESTINATION column name in the INSERT column list.
+2. MISSING COLUMN: Source lacks a column the destination requires.
+   Fix: Add a DEFAULT value like 'UNKNOWN' AS missing_col in the SELECT.
+3. TYPE CAST ERROR: String data contains non-numeric characters (currency symbols like $, text like N/A).
+   Fix: Use CASE WHEN col = 'N/A' THEN NULL ELSE CAST(REPLACE(col, '$', '') AS DOUBLE) END.
+   IMPORTANT: Always check ALL sample values for EVERY non-conforming pattern, not just the first error.
+4. JOIN KEY FORMAT MISMATCH: Join produces 0 rows because key formats differ (e.g., integer 101 vs varchar 'CUST-101').
+   Fix: Transform one side to match: CAST(REPLACE(c.id, 'CUST-', '') AS INTEGER).
+
+## Root Cause Description Rules
+When writing ROOT_CAUSE, be SPECIFIC:
+- Name the exact columns involved (e.g., "total_amount", "amount")
+- Name the exact tables involved (e.g., "source_data", "stg_sales")
+- Describe the nature of the problem (e.g., "column name mismatch", "missing column", "type cast error", "join key format mismatch")
+- If types differ, name both types (e.g., "VARCHAR", "DOUBLE", "INTEGER")
 
 When you have enough information, provide your FINAL DIAGNOSIS in this exact format (no markdown code fences):
 
-ROOT_CAUSE: <one line describing the root cause>
+ROOT_CAUSE: <one line describing the root cause — be specific about column names, table names, and the nature of the mismatch>
 FIX_TYPE: sql_modification
 FIX_DESCRIPTION: <what needs to change>
 FIXED_SQL:
@@ -57,15 +82,40 @@ TOOL_CALL: {"tool": "execute_sql", "args": {"query": "SELECT * FROM stg_sales LI
 
 CRITICAL: You MUST use at least 2 tools before providing your final diagnosis. Do NOT answer from the error log alone — always verify by inspecting schemas and running test queries first.
 
-Workflow:
-1. First, inspect the destination table schema to see the actual columns
-2. Then, inspect the source table or run a test SELECT to see source columns
-3. Compare source vs destination schemas to identify mismatches
-4. Propose a specific fix (no markdown code fences in SQL)
+## Diagnostic Checklist (follow this order)
+1. Inspect the DESTINATION table schema — note every column name and data type
+2. Inspect the SOURCE table schema — note every column name and data type
+3. Compare source vs destination columns SIDE BY SIDE:
+   - Are any column NAMES different? (e.g., source has "total_amount" but dest has "amount")
+   - Are any column TYPES different? (e.g., source VARCHAR but dest expects DOUBLE)
+   - Is any dest column MISSING from source entirely?
+4. If the transform SQL has a JOIN and the error mentions 0 rows:
+   - Run SELECT DISTINCT on the join key column from BOTH tables
+   - Compare the actual values — look for format differences (integer vs string, prefixes)
+5. Run a test SELECT with your proposed fix BEFORE writing the final INSERT
+6. Write the final fix and a verification query
+
+## Common ETL Bug Patterns
+1. COLUMN NAME MISMATCH: Source has column "X" but destination expects "Y".
+   Fix: SELECT source_col AS dest_col in the query. Use the DESTINATION column name in the INSERT column list.
+2. MISSING COLUMN: Source lacks a column the destination requires.
+   Fix: Add a DEFAULT value like 'UNKNOWN' AS missing_col in the SELECT.
+3. TYPE CAST ERROR: String data contains non-numeric characters (currency symbols like $, text like N/A).
+   Fix: Use CASE WHEN col = 'N/A' THEN NULL ELSE CAST(REPLACE(col, '$', '') AS DOUBLE) END.
+   IMPORTANT: Always check ALL sample values for EVERY non-conforming pattern, not just the first error.
+4. JOIN KEY FORMAT MISMATCH: Join produces 0 rows because key formats differ (e.g., integer 101 vs varchar 'CUST-101').
+   Fix: Transform one side to match: CAST(REPLACE(c.id, 'CUST-', '') AS INTEGER).
+
+## Root Cause Description Rules
+When writing ROOT_CAUSE, be SPECIFIC:
+- Name the exact columns involved (e.g., "total_amount", "amount")
+- Name the exact tables involved (e.g., "source_data", "stg_sales")
+- Describe the nature of the problem (e.g., "column name mismatch", "missing column", "type cast error", "join key format mismatch")
+- If types differ, name both types (e.g., "VARCHAR", "DOUBLE", "INTEGER")
 
 When you have enough information, provide your FINAL DIAGNOSIS in this exact format (no markdown code fences):
 
-ROOT_CAUSE: <one line describing the root cause>
+ROOT_CAUSE: <one line describing the root cause — be specific about column names, table names, and the nature of the mismatch>
 FIX_TYPE: sql_modification
 FIX_DESCRIPTION: <what needs to change>
 FIXED_SQL:
