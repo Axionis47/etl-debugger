@@ -1,0 +1,25 @@
+version: "1.0"
+cases:
+  - id: case_01_schema_mismatch
+    name: "Schema Mismatch - Column Rename"
+    difficulty: easy
+    category: schema
+    engine: duckdb
+
+  - id: case_02_missing_column
+    name: "Missing Column in Source"
+    difficulty: easy
+    category: schema
+    engine: sqlite
+
+  - id: case_03_type_cast_error
+    name: "Type Casting with Dirty Data"
+    difficulty: medium
+    category: data_quality
+    engine: duckdb
+
+  - id: case_04_join_key_mismatch
+    name: "Join Key Format Mismatch"
+    difficulty: medium
+    category: join_logic
+    engine: duckdb

@@ -1,0 +1,12 @@
+root_cause: "Price column contains currency symbol '$' and non-numeric value 'N/A' that cannot be cast to DOUBLE"
+fix_type: sql_modification
+fix_description: "Strip '$' prefix and handle 'N/A' values before casting to DOUBLE"
+fixed_sql: |
+  INSERT INTO fact_pricing (product_id, price, effective_date)
+  SELECT product_id,
+         CASE WHEN price = 'N/A' THEN NULL
+              ELSE CAST(REPLACE(price, '$', '') AS DOUBLE)
+         END,
+         effective_date
+  FROM source_data
+verification_query: "SELECT COUNT(*) as cnt FROM fact_pricing WHERE price IS NOT NULL"

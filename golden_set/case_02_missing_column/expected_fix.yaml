@@ -1,0 +1,7 @@
+root_cause: "Missing column 'region' in source CSV data"
+fix_type: sql_modification
+fix_description: "Add a DEFAULT value for the missing 'region' column in the SELECT"
+fixed_sql: |
+  INSERT INTO dim_customers (id, name, email, region, signup_date)
+  SELECT id, name, email, 'UNKNOWN' AS region, signup_date FROM source_data
+verification_query: "SELECT COUNT(*) as cnt FROM dim_customers WHERE region = 'UNKNOWN'"

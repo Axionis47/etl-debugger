@@ -1,0 +1,8 @@
+root_cause: "Column name mismatch: pipeline references 'total_amount' but destination table has 'amount'"
+fix_type: sql_modification
+fix_description: "Change 'total_amount' to 'amount' in the INSERT statement to match the destination schema"
+fixed_sql: |
+  INSERT INTO stg_sales (order_id, customer_id, amount, order_date)
+  SELECT order_id, customer_id, total_amount AS amount, order_date
+  FROM source_data
+verification_query: "SELECT COUNT(*) as cnt FROM stg_sales WHERE amount IS NOT NULL"

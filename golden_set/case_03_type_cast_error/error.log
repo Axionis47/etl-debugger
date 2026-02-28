@@ -1,0 +1,7 @@
+2024-11-15 10:05:40 INFO   Starting pipeline product_pricing_update
+2024-11-15 10:05:40 INFO   Source: source_data.csv (6 rows)
+2024-11-15 10:05:44 ERROR  Pipeline product_pricing_update failed at transform step
+2024-11-15 10:05:44 ERROR  ConversionException: Could not convert string '$12.50' to DOUBLE
+2024-11-15 10:05:44 ERROR  Error at row 1, column price
+2024-11-15 10:05:44 INFO   Sample values in price column: $12.50, $8.99, $45.00, N/A, $22.75, $15.00
+2024-11-15 10:05:44 INFO   Pipeline execution time: 4.1s

@@ -1,0 +1,7 @@
+2024-11-15 09:15:20 INFO   Starting pipeline customer_enrichment
+2024-11-15 09:15:20 INFO   Source: source_data.csv (4 rows)
+2024-11-15 09:15:22 ERROR  Pipeline customer_enrichment failed at transform step
+2024-11-15 09:15:22 ERROR  OperationalError: table source_data has no column named region
+2024-11-15 09:15:22 INFO   Source columns found: id, name, email, signup_date
+2024-11-15 09:15:22 INFO   Expected columns: id, name, email, region, signup_date
+2024-11-15 09:15:22 INFO   Pipeline execution time: 2.1s

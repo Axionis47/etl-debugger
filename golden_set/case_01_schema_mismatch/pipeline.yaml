@@ -1,0 +1,12 @@
+name: daily_sales_load
+source:
+  type: csv
+  path: source_data.csv
+destination:
+  engine: duckdb
+  table: stg_sales
+transform:
+  sql: |
+    INSERT INTO stg_sales (order_id, customer_id, total_amount, order_date)
+    SELECT order_id, customer_id, total_amount, order_date
+    FROM source_data

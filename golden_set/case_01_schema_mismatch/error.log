@@ -1,0 +1,6 @@
+2024-11-15 08:32:00 INFO   Starting pipeline daily_sales_load
+2024-11-15 08:32:00 INFO   Source: source_data.csv (5 rows)
+2024-11-15 08:32:01 ERROR  Pipeline daily_sales_load failed at transform step
+2024-11-15 08:32:01 ERROR  Binder Error: Table stg_sales does not have a column named "total_amount"
+2024-11-15 08:32:01 INFO   Available columns in stg_sales: order_id, customer_id, amount, order_date
+2024-11-15 08:32:01 INFO   Pipeline execution time: 1.2s

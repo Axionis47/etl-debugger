@@ -1,0 +1,15 @@
+name: order_customer_join
+source:
+  type: multi_table
+  tables:
+    - orders
+    - customers
+destination:
+  engine: duckdb
+  table: enriched_orders
+transform:
+  sql: |
+    INSERT INTO enriched_orders (order_id, customer_name, order_total)
+    SELECT o.order_id, c.name, o.total
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id

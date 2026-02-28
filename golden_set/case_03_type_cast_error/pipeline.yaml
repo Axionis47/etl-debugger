@@ -1,0 +1,12 @@
+name: product_pricing_update
+source:
+  type: csv
+  path: source_data.csv
+destination:
+  engine: duckdb
+  table: fact_pricing
+transform:
+  sql: |
+    INSERT INTO fact_pricing (product_id, price, effective_date)
+    SELECT product_id, CAST(price AS DOUBLE), effective_date
+    FROM source_data

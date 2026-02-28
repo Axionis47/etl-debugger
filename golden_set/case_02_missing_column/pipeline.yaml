@@ -1,0 +1,11 @@
+name: customer_enrichment
+source:
+  type: csv
+  path: source_data.csv
+destination:
+  engine: sqlite
+  table: dim_customers
+transform:
+  sql: |
+    INSERT INTO dim_customers (id, name, email, region, signup_date)
+    SELECT id, name, email, region, signup_date FROM source_data

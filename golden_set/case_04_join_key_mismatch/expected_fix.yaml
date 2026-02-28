@@ -1,0 +1,10 @@
+root_cause: "Join key format mismatch: orders.customer_id is INTEGER (101) but customers.customer_id is VARCHAR with 'CUST-' prefix (CUST-101)"
+fix_type: sql_modification
+fix_description: "Strip 'CUST-' prefix from customers.customer_id and cast to INTEGER before joining"
+fixed_sql: |
+  INSERT INTO enriched_orders (order_id, customer_name, order_total)
+  SELECT o.order_id, c.name, o.total
+  FROM orders o
+  JOIN customers c ON o.customer_id = CAST(REPLACE(c.customer_id, 'CUST-', '') AS INTEGER)
+verification_query: "SELECT COUNT(*) as cnt FROM enriched_orders"
+expected_row_count_min: 5

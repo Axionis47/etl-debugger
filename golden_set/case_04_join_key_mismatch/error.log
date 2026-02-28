@@ -1,0 +1,7 @@
+2024-11-15 11:22:30 INFO   Starting pipeline order_customer_join
+2024-11-15 11:22:30 INFO   Source tables: orders (5 rows), customers (5 rows)
+2024-11-15 11:22:33 WARN   Pipeline order_customer_join completed with 0 rows inserted
+2024-11-15 11:22:33 WARN   Expected approximately 5 rows based on source count
+2024-11-15 11:22:33 INFO   orders.customer_id sample values: 101, 102, 103, 104, 105
+2024-11-15 11:22:33 INFO   customers.customer_id sample values: CUST-101, CUST-102, CUST-103, CUST-104, CUST-105
+2024-11-15 11:22:33 INFO   Pipeline execution time: 3.2s
