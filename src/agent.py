@@ -299,12 +299,34 @@ class AgentLoop:
         return "\n".join(parts) if parts else ""
 
     def _parse_diagnosis(self, content: str) -> DiagnosisReport:
-        """Parse the LLM's final response into a structured DiagnosisReport."""
+        """Parse the LLM's final response into a structured DiagnosisReport.
+
+        Uses multiple fallback strategies to extract fields from varying
+        LLM output formats (structured labels, markdown headers, prose).
+        """
         root_cause = self._extract_field(content, "ROOT_CAUSE")
         fix_type = self._extract_field(content, "FIX_TYPE") or "sql_modification"
         fix_description = self._extract_field(content, "FIX_DESCRIPTION")
         fixed_sql = self._extract_sql_block(content, "FIXED_SQL")
         verification_query = self._extract_sql_block(content, "VERIFICATION_QUERY")
+
+        # Fallback: try alternative root cause labels
+        if not root_cause:
+            root_cause = self._extract_field_flexible(content, [
+                r"\*\*Root\s*Cause\*\*",
+                r"Root\s*Cause",
+                r"The\s+root\s+cause\s+is",
+                r"Issue",
+                r"Problem",
+            ])
+
+        # Fallback: extract SQL from content if FIXED_SQL label wasn't found
+        if not fixed_sql:
+            fixed_sql = self._extract_sql_fallback(content)
+
+        # Fallback: extract verification query from any trailing SELECT
+        if not verification_query and fixed_sql:
+            verification_query = self._extract_verification_fallback(content, fixed_sql)
 
         # If structured parsing didn't work, use the raw content
         if not root_cause and not fixed_sql:
@@ -332,6 +354,23 @@ class AgentLoop:
         return match.group(1).strip() if match else ""
 
     @staticmethod
+    def _extract_field_flexible(content: str, patterns: list[str]) -> str:
+        """Try multiple label patterns to extract a field value.
+
+        Handles variations like **Root Cause**: ..., Root Cause: ...,
+        The root cause is: ..., etc.
+        """
+        for pat in patterns:
+            match = re.search(rf"{pat}\s*[:]\s*(.+?)(?:\n|$)", content, re.IGNORECASE)
+            if match:
+                value = match.group(1).strip()
+                # Strip trailing markdown artifacts
+                value = value.rstrip("*").strip()
+                if value:
+                    return value
+        return ""
+
+    @staticmethod
     def _extract_sql_block(content: str, field_name: str) -> str:
         """Extract a multi-line SQL block after a field label."""
         # Try to find content between FIELD_NAME: and the next field or end
@@ -343,20 +382,82 @@ class AgentLoop:
             return sql
 
         # Fallback: look for ```sql blocks after the field name
-        pattern = rf"{field_name}:.*?```sql?\n(.*?)```"
+        pattern = rf"{field_name}:.*?```(?:sql|SQL)?\s*\n(.*?)```"
+        match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+
+        # Fallback: look for ~~~sql blocks
+        pattern = rf"{field_name}:.*?~~~(?:sql|SQL)?\s*\n(.*?)~~~"
         match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
         if match:
             return match.group(1).strip()
 
         return ""
 
+    @staticmethod
+    def _extract_sql_fallback(content: str) -> str:
+        """Extract SQL when FIXED_SQL label is missing.
+
+        Looks for INSERT INTO or corrected SELECT statements in code blocks
+        or raw content.
+        """
+        # Try code-fenced SQL blocks containing INSERT INTO
+        for fence in ["```", "~~~"]:
+            pattern = rf"{fence}(?:sql|SQL)?\s*\n(.*?){fence}"
+            matches = re.findall(pattern, content, re.DOTALL)
+            for block in matches:
+                block = block.strip()
+                if re.search(r'\bINSERT\s+INTO\b', block, re.IGNORECASE):
+                    return block
+
+        # Try unfenced INSERT INTO ... SELECT blocks
+        match = re.search(
+            r'(INSERT\s+INTO\s+\w+\s*\([^)]+\)\s*\n\s*SELECT\s+.+?)(?=\n\n|\nROOT_CAUSE|\nFIX_|\nVERIFICATION|\Z)',
+            content,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if match:
+            return _strip_code_fences(match.group(1).strip())
+
+        return ""
+
+    @staticmethod
+    def _extract_verification_fallback(content: str, fixed_sql: str) -> str:
+        """Extract verification query when VERIFICATION_QUERY label is missing.
+
+        Looks for a SELECT COUNT(*) or similar query after the fixed SQL.
+        """
+        # Find position after the fixed SQL in content
+        sql_pos = content.find(fixed_sql)
+        if sql_pos == -1:
+            # Try first line of fixed SQL
+            first_line = fixed_sql.split("\n")[0]
+            sql_pos = content.find(first_line)
+
+        if sql_pos == -1:
+            return ""
+
+        after = content[sql_pos + len(fixed_sql.split("\n")[0]):]
+
+        # Look for SELECT COUNT or SELECT * as verification
+        match = re.search(
+            r'(SELECT\s+COUNT\s*\(.*?\)\s+FROM\s+\w+.*?)(?:\n\n|\Z)',
+            after,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if match:
+            return _strip_code_fences(match.group(1).strip())
+
+        return ""
+
 
 def _strip_code_fences(sql: str) -> str:
     """Remove all markdown code fence artifacts from SQL."""
-    # Remove opening fences like ```sql, ```
-    sql = re.sub(r"^```\w*\s*\n?", "", sql)
+    # Remove opening fences like ```sql, ```SQL, ~~~sql, ~~~
+    sql = re.sub(r"^(?:```|~~~)\w*\s*\n?", "", sql)
     # Remove closing fences
-    sql = re.sub(r"\n?```\s*$", "", sql)
-    # Remove any remaining standalone ``` lines
-    lines = [line for line in sql.split("\n") if line.strip() != "```"]
+    sql = re.sub(r"\n?(?:```|~~~)\s*$", "", sql)
+    # Remove any remaining standalone ``` or ~~~ lines
+    lines = [line for line in sql.split("\n") if line.strip() not in ("```", "~~~")]
     return "\n".join(lines).strip()
