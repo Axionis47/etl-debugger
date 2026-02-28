@@ -78,7 +78,7 @@ class EvalRunner:
             set_base_dir(str(case_dir))
 
             # Run agent
-            agent = AgentLoop(llm=self.llm, max_steps=10, verbose=False)
+            agent = AgentLoop(llm=self.llm, max_steps=15, verbose=False)
             diagnosis = agent.run(pipeline, error_log, case_dir=str(case_dir))
 
             elapsed = time.time() - start

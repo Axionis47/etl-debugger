@@ -11,6 +11,8 @@ from rich.panel import Panel
 from src.llm import OllamaClient, SYSTEM_PROMPT, TOOL_FUNCTIONS
 from src.models import DiagnosisReport, DiagnosisStatus, PipelineConfig
 from src.tools import execute_tool
+from src.tools.schema_inspector import compare_schemas, sample_values
+from src.tools.sql_executor import get_db_path
 
 console = Console()
 
@@ -139,7 +141,12 @@ class AgentLoop:
         error_log: str,
         case_dir: str | None,
     ) -> str:
-        """Build the initial user prompt with pipeline context."""
+        """Build the initial user prompt with pipeline context.
+
+        Pre-computes diagnostic context (schema comparisons, join key samples)
+        and injects it directly into the prompt. This is critical because small
+        models (7B) often complete in a single step without calling tools.
+        """
         parts = [
             "I have a broken ETL pipeline that needs debugging.",
             "",
@@ -171,15 +178,125 @@ class AgentLoop:
                 f"Files: {', '.join(files)}",
             ])
 
+        # Pre-compute diagnostic context if database is available
+        engine = pipeline.destination.engine
+        diagnostics = self._precompute_diagnostics(pipeline, error_log, engine)
+        if diagnostics:
+            parts.extend(["", "## Pre-computed Diagnostics", diagnostics])
+
         parts.extend([
             "",
-            f"The database engine is {pipeline.destination.engine}. "
-            f"Use engine='{pipeline.destination.engine}' when calling tools.",
+            f"The database engine is {engine}. "
+            f"Use engine='{engine}' when calling tools.",
             "",
             "Please diagnose the root cause and propose a fix.",
         ])
 
         return "\n".join(parts)
+
+    def _precompute_diagnostics(
+        self,
+        pipeline: PipelineConfig,
+        error_log: str,
+        engine: str,
+    ) -> str:
+        """Pre-compute schema comparisons and join diagnostics.
+
+        Returns diagnostic context as a formatted string, or empty string
+        if no database is configured (e.g. during unit tests).
+        """
+        db_path = get_db_path(engine)
+        if not db_path:
+            return ""
+
+        parts: list[str] = []
+        dest_table = pipeline.destination.table
+        transform_sql = pipeline.transform.sql
+
+        # Determine source tables from pipeline config
+        source_tables = self._get_source_tables(pipeline)
+
+        # Schema comparison for each source table vs destination
+        for src_table in source_tables:
+            try:
+                comparison = compare_schemas(src_table, dest_table, engine)
+                parts.append(f"### Schema: {src_table} vs {dest_table}")
+                parts.append(comparison)
+                parts.append("")
+            except Exception:
+                pass
+
+        # Zero-row join diagnostic: when error mentions "0 rows" and SQL has JOIN
+        error_lower = error_log.lower()
+        sql_upper = transform_sql.upper()
+        if ("0 rows" in error_lower or "0 row" in error_lower) and "JOIN" in sql_upper:
+            parts.append("### WARNING: Join produced 0 rows")
+            parts.append(
+                "The transform SQL uses a JOIN but produced 0 rows. "
+                "This usually means join key VALUES don't match between tables "
+                "(e.g., integer 101 vs string 'CUST-101'). "
+                "Compare the actual key values below:"
+            )
+            # Try to extract join key columns and sample them
+            join_samples = self._sample_join_keys(transform_sql, engine)
+            if join_samples:
+                parts.append("")
+                parts.append(join_samples)
+            parts.append("")
+
+        return "\n".join(parts) if parts else ""
+
+    @staticmethod
+    def _get_source_tables(pipeline: PipelineConfig) -> list[str]:
+        """Extract source table names from pipeline config."""
+        if pipeline.source.tables:
+            return pipeline.source.tables
+        # Single-source: infer table name from source path
+        if pipeline.source.path:
+            return [Path(pipeline.source.path).stem]
+        return []
+
+    @staticmethod
+    def _sample_join_keys(transform_sql: str, engine: str) -> str:
+        """Extract join key columns from SQL and sample their values.
+
+        Parses simple JOIN ... ON conditions and calls sample_values
+        for each side of the join to reveal format mismatches.
+        """
+        # Match patterns like: JOIN <table> <alias> ON <expr> = <expr>
+        join_pattern = re.compile(
+            r'JOIN\s+(\w+)\s+(\w+)\s+ON\s+'
+            r'(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)',
+            re.IGNORECASE,
+        )
+        match = join_pattern.search(transform_sql)
+        if not match:
+            return ""
+
+        parts: list[str] = []
+        # Extract both sides of the join condition
+        left_alias, left_col = match.group(3), match.group(4)
+        right_alias, right_col = match.group(5), match.group(6)
+
+        # Map aliases to table names from the SQL
+        from_pattern = re.compile(r'FROM\s+(\w+)\s+(\w+)', re.IGNORECASE)
+        from_match = from_pattern.search(transform_sql)
+
+        alias_map: dict[str, str] = {}
+        if from_match:
+            alias_map[from_match.group(2)] = from_match.group(1)
+        alias_map[match.group(2)] = match.group(1)
+
+        # Sample values for each side of the join
+        for alias, col in [(left_alias, left_col), (right_alias, right_col)]:
+            table = alias_map.get(alias, alias)
+            try:
+                result = sample_values(table, col, engine)
+                parts.append(result)
+            except Exception:
+                pass
+
+        return "\n".join(parts) if parts else ""
 
     def _parse_diagnosis(self, content: str) -> DiagnosisReport:
         """Parse the LLM's final response into a structured DiagnosisReport."""
