@@ -9,7 +9,7 @@ import duckdb
 import pytest
 
 from src.tools.sql_executor import execute_sql, set_db_path
-from src.tools.schema_inspector import inspect_schema
+from src.tools.schema_inspector import inspect_schema, compare_schemas, sample_values
 from src.tools.log_parser import parse_logs
 from src.tools.file_reader import read_file, set_base_dir
 
@@ -81,6 +81,57 @@ class TestSchemaInspector:
     def test_nonexistent_table(self, sqlite_path):
         result = inspect_schema("nonexistent", "sqlite")
         assert "not found" in result.lower() or "products" in result
+
+
+class TestCompareSchemas:
+    def test_duckdb_matching(self, duckdb_path):
+        """Compare a table with itself — all columns should match."""
+        result = compare_schemas("users", "users", "duckdb")
+        assert "OK" in result
+        assert "MISMATCH" not in result
+
+    def test_duckdb_type_mismatch(self, tmp_path):
+        """Compare tables with type differences."""
+        db_path = str(tmp_path / "compare_test.duckdb")
+        con = duckdb.connect(db_path)
+        con.execute("CREATE TABLE src (id INTEGER, price VARCHAR)")
+        con.execute("INSERT INTO src VALUES (1, '$12.50'), (2, 'N/A')")
+        con.execute("CREATE TABLE dst (id INTEGER, price DOUBLE)")
+        con.close()
+        set_db_path("duckdb", db_path)
+        result = compare_schemas("src", "dst", "duckdb")
+        assert "TYPE MISMATCH" in result
+        assert "Sample values" in result
+        assert "$12.50" in result
+        assert "N/A" in result
+
+    def test_missing_column(self, tmp_path):
+        """Compare tables where source is missing a column."""
+        db_path = str(tmp_path / "missing_test.duckdb")
+        con = duckdb.connect(db_path)
+        con.execute("CREATE TABLE src2 (id INTEGER, name VARCHAR)")
+        con.execute("INSERT INTO src2 VALUES (1, 'Alice')")
+        con.execute("CREATE TABLE dst2 (id INTEGER, name VARCHAR, region VARCHAR)")
+        con.close()
+        set_db_path("duckdb", db_path)
+        result = compare_schemas("src2", "dst2", "duckdb")
+        assert "MISSING IN SOURCE" in result
+
+
+class TestSampleValues:
+    def test_duckdb_sample(self, duckdb_path):
+        result = sample_values("users", "name", "duckdb")
+        assert "Alice" in result
+        assert "Bob" in result
+
+    def test_sqlite_sample(self, sqlite_path):
+        result = sample_values("products", "name", "sqlite")
+        assert "Widget" in result
+        assert "Gadget" in result
+
+    def test_no_db(self):
+        result = sample_values("t", "c", "nonexistent_engine")
+        assert "Error" in result
 
 
 class TestLogParser:

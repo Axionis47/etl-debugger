@@ -8,7 +8,7 @@ from typing import Any
 import ollama
 
 from src.tools.sql_executor import execute_sql
-from src.tools.schema_inspector import inspect_schema
+from src.tools.schema_inspector import inspect_schema, compare_schemas, sample_values
 from src.tools.log_parser import parse_logs
 from src.tools.file_reader import read_file
 
@@ -18,6 +18,8 @@ SYSTEM_PROMPT = """You are an ETL Pipeline Debugger. You diagnose and fix broken
 You have access to these tools:
 - execute_sql(query, engine): Run a SQL query against SQLite or DuckDB
 - inspect_schema(table_name, engine): Get column names, types, and row counts
+- compare_schemas(source_table, dest_table, engine): Compare two table schemas side by side with type mismatch detection and sample values
+- sample_values(table_name, column_name, engine): Get distinct sample values from a column
 - parse_logs(log_content, pattern): Search error logs with regex
 - read_file(file_path): Read a pipeline config or data file
 
@@ -70,6 +72,8 @@ STRUCTURED_SYSTEM_PROMPT = """You are an ETL Pipeline Debugger. You diagnose and
 You have access to these tools:
 - execute_sql(query, engine): Run a SQL query against SQLite or DuckDB
 - inspect_schema(table_name, engine): Get column names, types, and row counts
+- compare_schemas(source_table, dest_table, engine): Compare two table schemas side by side with type mismatch detection and sample values
+- sample_values(table_name, column_name, engine): Get distinct sample values from a column
 - parse_logs(log_content, pattern): Search error logs with regex
 - read_file(file_path): Read a pipeline config or data file
 
@@ -130,7 +134,7 @@ Important rules:
 
 
 # The tools available to the agent, as plain functions for Ollama's native tool calling
-TOOL_FUNCTIONS: list[callable] = [execute_sql, inspect_schema, parse_logs, read_file]
+TOOL_FUNCTIONS: list[callable] = [execute_sql, inspect_schema, compare_schemas, sample_values, parse_logs, read_file]
 
 
 @dataclass

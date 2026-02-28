@@ -1,11 +1,13 @@
 from src.tools.sql_executor import execute_sql
-from src.tools.schema_inspector import inspect_schema
+from src.tools.schema_inspector import inspect_schema, compare_schemas, sample_values
 from src.tools.log_parser import parse_logs
 from src.tools.file_reader import read_file
 
 TOOL_REGISTRY: dict[str, callable] = {
     "execute_sql": execute_sql,
     "inspect_schema": inspect_schema,
+    "compare_schemas": compare_schemas,
+    "sample_values": sample_values,
     "parse_logs": parse_logs,
     "read_file": read_file,
 }

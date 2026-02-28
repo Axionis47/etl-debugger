@@ -127,6 +127,8 @@ def list_tools():
 
     table.add_row("execute_sql", "Run SQL queries against SQLite or DuckDB")
     table.add_row("inspect_schema", "Inspect table schemas, column types, row counts")
+    table.add_row("compare_schemas", "Compare two table schemas side by side with type mismatch detection")
+    table.add_row("sample_values", "Get distinct sample values from a column")
     table.add_row("parse_logs", "Search and filter ETL error logs")
     table.add_row("read_file", "Read pipeline configs and data files")
 
